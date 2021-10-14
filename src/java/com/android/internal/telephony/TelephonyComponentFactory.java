@@ -30,10 +30,12 @@ import android.system.StructStatVfs;
 import android.telephony.AccessNetworkConstants.TransportType;
 import android.text.TextUtils;
 
+import com.android.ims.ImsManager;
 import com.android.internal.telephony.cdma.CdmaSubscriptionSourceManager;
 import com.android.internal.telephony.cdma.EriManager;
 import com.android.internal.telephony.dataconnection.DataEnabledSettings;
 import com.android.internal.telephony.dataconnection.DcTracker;
+import com.android.internal.telephony.dataconnection.LinkBandwidthEstimator;
 import com.android.internal.telephony.dataconnection.TransportManager;
 import com.android.internal.telephony.emergency.EmergencyNumberTracker;
 import com.android.internal.telephony.imsphone.ImsExternalCallTracker;
@@ -72,6 +74,7 @@ public class TelephonyComponentFactory {
     private static final String TAG = TelephonyComponentFactory.class.getSimpleName();
 
     private static TelephonyComponentFactory sInstance;
+    private final TelephonyFacade mTelephonyFacade = new TelephonyFacade();
 
     private InjectedComponents mInjectedComponents;
 
@@ -361,10 +364,11 @@ public class TelephonyComponentFactory {
      */
     public InboundSmsTracker makeInboundSmsTracker(Context context, byte[] pdu, long timestamp,
             int destPort, boolean is3gpp2, boolean is3gpp2WapPdu, String address,
-            String displayAddr, String messageBody, boolean isClass0, int subId) {
+            String displayAddr, String messageBody, boolean isClass0, int subId,
+            @InboundSmsHandler.SmsSource int smsSource) {
         Rlog.d(LOG_TAG, "makeInboundSmsTracker");
         return new InboundSmsTracker(context, pdu, timestamp, destPort, is3gpp2, is3gpp2WapPdu,
-                address, displayAddr, messageBody, isClass0, subId);
+                address, displayAddr, messageBody, isClass0, subId, smsSource);
     }
 
     /**
@@ -373,11 +377,11 @@ public class TelephonyComponentFactory {
     public InboundSmsTracker makeInboundSmsTracker(Context context, byte[] pdu, long timestamp,
             int destPort, boolean is3gpp2, String address, String displayAddr, int referenceNumber,
             int sequenceNumber, int messageCount, boolean is3gpp2WapPdu, String messageBody,
-            boolean isClass0, int subId) {
+            boolean isClass0, int subId, @InboundSmsHandler.SmsSource int smsSource) {
         Rlog.d(LOG_TAG, "makeInboundSmsTracker");
         return new InboundSmsTracker(context, pdu, timestamp, destPort, is3gpp2, address,
                 displayAddr, referenceNumber, sequenceNumber, messageCount, is3gpp2WapPdu,
-                messageBody, isClass0, subId);
+                messageBody, isClass0, subId, smsSource);
     }
 
     /**
@@ -391,7 +395,7 @@ public class TelephonyComponentFactory {
 
     public ImsPhoneCallTracker makeImsPhoneCallTracker(ImsPhone imsPhone) {
         Rlog.d(LOG_TAG, "makeImsPhoneCallTracker");
-        return new ImsPhoneCallTracker(imsPhone);
+        return new ImsPhoneCallTracker(imsPhone, ImsManager::getConnector);
     }
 
     public ImsExternalCallTracker makeImsExternalCallTracker(ImsPhone imsPhone) {
@@ -463,9 +467,16 @@ public class TelephonyComponentFactory {
     }
 
     public SubscriptionInfoUpdater makeSubscriptionInfoUpdater(Looper looper, Context context,
-            CommandsInterface[] ci) {
+            SubscriptionController sc) {
         Rlog.i(TAG, "makeSubscriptionInfoUpdater");
-        return new SubscriptionInfoUpdater(looper, context, ci);
+        return new SubscriptionInfoUpdater(looper, context, sc);
+    }
+
+    /**
+     * Create a new LinkBandwidthEstimator.
+     */
+    public LinkBandwidthEstimator makeLinkBandwidthEstimator(Phone phone) {
+        return new LinkBandwidthEstimator(phone, mTelephonyFacade);
     }
 
     public RIL makeRIL(Context context, int preferredNetworkType,
@@ -483,4 +494,5 @@ public class TelephonyComponentFactory {
         Rlog.i(TAG, " makeCarrierInfoManager ");
         return new CarrierInfoManager();
     }
+
 }

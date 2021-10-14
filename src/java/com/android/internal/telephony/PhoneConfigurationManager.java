@@ -19,8 +19,10 @@ package com.android.internal.telephony;
 import static android.telephony.TelephonyManager.ACTION_MULTI_SIM_CONFIG_CHANGED;
 import static android.telephony.TelephonyManager.EXTRA_ACTIVE_SIM_SUPPORTED_COUNT;
 
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.os.AsyncResult;
 import android.os.Handler;
 import android.os.Message;
@@ -50,7 +52,7 @@ public class PhoneConfigurationManager {
     public static final String DSDA = "dsda";
     public static final String DSDS = "dsds";
     public static final String TSTS = "tsts";
-    public static final String SSSS = "";
+    public static final String SSSS = "ssss";
     private static final String LOG_TAG = "PhoneCfgMgr";
     private static final int EVENT_SWITCH_DSDS_CONFIG_DONE = 100;
     private static final int EVENT_GET_MODEM_STATUS = 101;
@@ -69,6 +71,12 @@ public class PhoneConfigurationManager {
     private MockableInterface mMi = new MockableInterface();
     private TelephonyManager mTelephonyManager;
     private static final RegistrantList sMultiSimConfigChangeRegistrants = new RegistrantList();
+
+    private final String ACTION_MSIM_VOICE_CAPABILITY =
+            "org.codeaurora.intent.action.MSIM_VOICE_CAPABILITY";
+    private final String PERMISSION_MSIM_VOICE_CAPABILITY =
+            "com.qti.permission.RECEIVE_MSIM_VOICE_CAPABILITY";
+    private final String EXTRAS_MSIM_VOICE_CAPABILITY = "MsimVoiceCapability";
 
     /**
      * Init method to instantiate the object
@@ -95,7 +103,7 @@ public class PhoneConfigurationManager {
         mTelephonyManager = (TelephonyManager) context.getSystemService(Context.TELEPHONY_SERVICE);
         //initialize with default, it'll get updated when RADIO is ON/AVAILABLE
         mStaticCapability = getDefaultCapability();
-        mRadioConfig = RadioConfig.getInstance(mContext);
+        mRadioConfig = RadioConfig.getInstance();
         mHandler = new ConfigManagerHandler();
         mPhoneStatusMap = new HashMap<>();
 
@@ -106,7 +114,20 @@ public class PhoneConfigurationManager {
         for (Phone phone : mPhones) {
             registerForRadioState(phone);
         }
+        mContext.registerReceiver(mConcurrentCallsReceiver,
+                new IntentFilter(ACTION_MSIM_VOICE_CAPABILITY), PERMISSION_MSIM_VOICE_CAPABILITY,
+                null);
     }
+
+    private BroadcastReceiver mConcurrentCallsReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            int voiceCapability = intent.getIntExtra(EXTRAS_MSIM_VOICE_CAPABILITY,
+                    TelephonyManager.MultiSimVoiceCapability.UNKNOWN);
+            log(" mConcurrentCallsReceiver: voiceCapability : " + voiceCapability);
+            TelephonyProperties.multi_sim_voice_capability(voiceCapability);
+        }
+    };
 
     private void registerForRadioState(Phone phone) {
         if (!StorageManager.inCryptKeeperBounce()) {
@@ -186,6 +207,7 @@ public class PhoneConfigurationManager {
                     } else {
                         log(msg.what + " failure. Not getting phone capability." + ar.exception);
                     }
+                    break;
             }
         }
     }
@@ -311,7 +333,7 @@ public class PhoneConfigurationManager {
     }
 
     public int getNumberOfModemsWithSimultaneousDataConnections() {
-        return mStaticCapability.maxActiveData;
+        return mStaticCapability.getMaxActiveDataSubscriptions();
     }
 
     private void notifyCapabilityChanged() {
@@ -326,7 +348,7 @@ public class PhoneConfigurationManager {
      */
     public void switchMultiSimConfig(int numOfSims) {
         log("switchMultiSimConfig: with numOfSims = " + numOfSims);
-        if (getStaticPhoneCapability().logicalModemList.size() < numOfSims) {
+        if (getStaticPhoneCapability().getLogicalModemList().size() < numOfSims) {
             log("switchMultiSimConfig: Phone is not capable of enabling "
                     + numOfSims + " sims, exiting!");
             return;
@@ -496,5 +518,13 @@ public class PhoneConfigurationManager {
 
     private static void log(String s) {
         Rlog.d(LOG_TAG, s);
+    }
+
+    private static void loge(String s) {
+        Rlog.e(LOG_TAG, s);
+    }
+
+    private static void loge(String s, Exception ex) {
+        Rlog.e(LOG_TAG, s, ex);
     }
 }

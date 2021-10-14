@@ -445,7 +445,10 @@ public final class NetworkScanRequestTracker {
                     .setCallingPackage(nsri.mCallingPackage)
                     .setCallingPid(nsri.mPid)
                     .setCallingUid(nsri.mUid)
+                    .setCallingFeatureId(nsri.mPhone.getContext().getAttributionTag())
                     .setMinSdkVersionForFine(Build.VERSION_CODES.Q)
+                    .setMinSdkVersionForCoarse(Build.VERSION_CODES.Q)
+                    .setMinSdkVersionForEnforcement(Build.VERSION_CODES.Q)
                     .setMethod("NetworkScanTracker#onResult")
                     .build();
             if (ar.exception == null && ar.result != null) {
@@ -609,8 +612,8 @@ public final class NetworkScanRequestTracker {
      *
      * This method is similar to stopNetworkScan, since they both stops an ongoing scan. The
      * difference is that stopNetworkScan is only used by the callers to stop their own scans, so
-     * sanity check will be done to make sure the request is valid; while this method is only
-     * internally used by NetworkScanRequestTracker so sanity check is not needed.
+     * correctness check will be done to make sure the request is valid; while this method is only
+     * internally used by NetworkScanRequestTracker so correctness check is not needed.
      */
     private void interruptNetworkScan(int scanId) {
         // scanId will be stored at Message.arg1

@@ -19,6 +19,7 @@ package com.android.internal.telephony;
 import android.compat.annotation.UnsupportedAppUsage;
 import android.content.Context;
 import android.os.AsyncResult;
+import android.os.Build;
 import android.os.Handler;
 import android.os.Message;
 import android.os.PersistableBundle;
@@ -42,17 +43,17 @@ public abstract class CallTracker extends Handler {
 
     static final int POLL_DELAY_MSEC = 250;
 
-    @UnsupportedAppUsage
+    @UnsupportedAppUsage(maxTargetSdk = Build.VERSION_CODES.R, trackingBug = 170729553)
     protected int mPendingOperations;
-    @UnsupportedAppUsage
+    @UnsupportedAppUsage(maxTargetSdk = Build.VERSION_CODES.R, trackingBug = 170729553)
     protected boolean mNeedsPoll;
     protected Message mLastRelevantPoll;
     protected ArrayList<Connection> mHandoverConnections = new ArrayList<Connection>();
 
-    @UnsupportedAppUsage
+    @UnsupportedAppUsage(maxTargetSdk = Build.VERSION_CODES.R, trackingBug = 170729553)
     public CommandsInterface mCi;
 
-    @UnsupportedAppUsage
+    @UnsupportedAppUsage(maxTargetSdk = Build.VERSION_CODES.R, trackingBug = 170729553)
     protected boolean mNumberConverted = false;
     private final int VALID_COMPARE_LENGTH   = 3;
 
@@ -134,7 +135,8 @@ public abstract class CallTracker extends Handler {
             // Individual connections will be removed from the list in handlePollCalls()
             mHandoverConnections.clear();
         }
-        log("notifySrvccState: mHandoverConnections= " + mHandoverConnections.toString());
+        log("notifySrvccState: state=" + state.name() + ", mHandoverConnections= "
+                + mHandoverConnections.toString());
     }
 
     protected void handleRadioAvailable() {
@@ -237,11 +239,13 @@ public abstract class CallTracker extends Handler {
      */
     protected boolean isPseudoDsdaCall() {
         TelephonyManager telephony = TelephonyManager.from(getPhone().getContext());
-        if (telephony.getActiveModemCount() > PhoneConstants.MAX_PHONE_COUNT_SINGLE_SIM) {
-            for (Phone phone: PhoneFactory.getPhones()) {
-                if (phone.getSubId() != getPhone().getSubId()) {
-                    return phone.getState() == PhoneConstants.State.OFFHOOK;
-                }
+        if (telephony.isConcurrentCallsPossible() ||
+            telephony.getActiveModemCount() <= PhoneConstants.MAX_PHONE_COUNT_SINGLE_SIM) {
+            return false;
+        }
+        for (Phone phone: PhoneFactory.getPhones()) {
+            if (phone.getSubId() != getPhone().getSubId()) {
+                return phone.getState() == PhoneConstants.State.OFFHOOK;
             }
         }
         return false;
@@ -286,9 +290,9 @@ public abstract class CallTracker extends Handler {
     @UnsupportedAppUsage
     public abstract void registerForVoiceCallEnded(Handler h, int what, Object obj);
     public abstract void unregisterForVoiceCallEnded(Handler h);
-    @UnsupportedAppUsage
+    @UnsupportedAppUsage(maxTargetSdk = Build.VERSION_CODES.R, trackingBug = 170729553)
     public abstract PhoneConstants.State getState();
-    @UnsupportedAppUsage
+    @UnsupportedAppUsage(maxTargetSdk = Build.VERSION_CODES.R, trackingBug = 170729553)
     protected abstract void log(String msg);
 
     /**

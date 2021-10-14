@@ -16,20 +16,14 @@
 
 package com.android.internal.telephony.vendor;
 
-import android.Manifest;
 import android.compat.annotation.UnsupportedAppUsage;
-import android.content.ContentValues;
 import android.content.Context;
-import android.content.Intent;
-import android.os.AsyncResult;
 import android.os.Binder;
 import android.os.Handler;
 import android.os.Message;
 import android.os.Registrant;
 import android.os.RegistrantList;
-import android.os.SystemProperties;
 import android.provider.Settings;
-import android.provider.Settings.SettingNotFoundException;
 import android.telecom.PhoneAccount;
 import android.telecom.PhoneAccountHandle;
 import android.telecom.TelecomManager;
@@ -59,9 +53,6 @@ public class VendorSubscriptionController extends SubscriptionController {
 
     protected static final int EVENT_RADIO_CAPABILITY_AVAILABLE = 102;
 
-    private static final int PROVISIONED = 1;
-    private static final int NOT_PROVISIONED = 0;
-
     private TelecomManager mTelecomManager;
     private TelephonyManager mTelephonyManager;
     protected boolean mSetRcPending = false;
@@ -69,12 +60,6 @@ public class VendorSubscriptionController extends SubscriptionController {
     private RegistrantList mAddSubscriptionRecordRegistrants = new RegistrantList();
 
     private static final String SETTING_USER_PREF_DATA_SUB = "user_preferred_data_sub";
-    /**
-     * This intent would be broadcasted when a subId/slotId pair added to the
-     * sSlotIdxToSubId hashmap.
-     */
-    private static final String ACTION_SUBSCRIPTION_RECORD_ADDED =
-            "android.intent.action.SUBSCRIPTION_INFO_RECORD_ADDED";
 
     public static VendorSubscriptionController init(Context c) {
         synchronized (VendorSubscriptionController.class) {
@@ -97,13 +82,11 @@ public class VendorSubscriptionController extends SubscriptionController {
 
     protected VendorSubscriptionController(Context c) {
         super(c);
-        if (DBG) logd(" init by Context");
 
         mTelecomManager = (TelecomManager) mContext.getSystemService(Context.TELECOM_SERVICE);
         mTelephonyManager = (TelephonyManager) mContext.getSystemService(Context.TELEPHONY_SERVICE);
         sNumPhones = TelephonyManager.getDefault().getPhoneCount();
     }
-
     public void registerForAddSubscriptionRecord(Handler handler, int what, Object obj) {
         Registrant r = new Registrant(handler, what, obj);
         synchronized (mAddSubscriptionRecordRegistrants) {
@@ -120,31 +103,6 @@ public class VendorSubscriptionController extends SubscriptionController {
         synchronized (mAddSubscriptionRecordRegistrants) {
             mAddSubscriptionRecordRegistrants.remove(handler);
         }
-    }
-
-    @Override
-    public int addSubInfoRecord(String iccId, int slotIndex) {
-        logd("addSubInfoRecord: broadcast intent subId[" + slotIndex + "]");
-        return addSubInfo(iccId, null, slotIndex, SubscriptionManager.SUBSCRIPTION_TYPE_LOCAL_SIM);
-    }
-
-    @Override
-    public int addSubInfo(String uniqueId, String displayName, int slotIndex,
-            int subscriptionType) {
-
-        int retVal = super.addSubInfo(uniqueId, displayName, slotIndex, subscriptionType);
-
-        int[] subId = getSubId(slotIndex);
-        if (subId != null && (subId.length > 0)) {
-            // When a new entry added in sSlotIdxToSubId for slotId, broadcast intent
-            logd("addSubInfoRecord: broadcast intent subId[" + slotIndex + "] = " + subId[0]);
-            mAddSubscriptionRecordRegistrants.notifyRegistrants(
-                    new AsyncResult(null, slotIndex, null));
-            Intent intent = new Intent(ACTION_SUBSCRIPTION_RECORD_ADDED);
-            SubscriptionManager.putPhoneIdAndSubIdExtra(intent, slotIndex, subId[0]);
-            mContext.sendBroadcast(intent, Manifest.permission.READ_PRIVILEGED_PHONE_STATE);
-        }
-        return retVal;
     }
 
     /*
@@ -230,14 +188,6 @@ public class VendorSubscriptionController extends SubscriptionController {
         logd("updateUserPreferences:: active sub count = " + activeCount + " dds = "
                  + defaultDataSubId + " voice = " + defaultVoiceSubId +
                  " sms = " + defaultSmsSubId);
-
-        // If active SUB count is 1, Always Ask Prompt to be disabled and
-        // preference fallback to the next available SUB.
-        if (activeCount == 1) {
-            setSmsPromptEnabled(false);
-        }
-
-        // TODO Set all prompt options to false ?
 
         // in Single SIM case or if there are no activated subs available, no need to update. EXIT.
         if ((mNextActivatedSub == null) || (getActiveSubInfoCountMax() == 1)) return;
@@ -327,31 +277,6 @@ public class VendorSubscriptionController extends SubscriptionController {
             }
         }
         return isSubIdUsable;
-    }
-
-    /* Returns User SMS Prompt property,  enabled or not */
-    public boolean isSmsPromptEnabled() {
-        boolean prompt = false;
-        int value = 0;
-        try {
-            value = Settings.Global.getInt(mContext.getContentResolver(),
-                    Settings.Global.MULTI_SIM_SMS_PROMPT);
-        } catch (SettingNotFoundException snfe) {
-            loge("Settings Exception Reading Dual Sim SMS Prompt Values");
-        }
-        prompt = (value == 0) ? false : true ;
-        if (VDBG) logd("SMS Prompt option:" + prompt);
-
-       return prompt;
-    }
-
-    /*Sets User SMS Prompt property,  enable or not */
-    public void setSmsPromptEnabled(boolean enabled) {
-        enforceModifyPhoneState("setSMSPromptEnabled");
-        int value = (enabled == false) ? 0 : 1;
-        Settings.Global.putInt(mContext.getContentResolver(),
-                Settings.Global.MULTI_SIM_SMS_PROMPT, value);
-        logi("setSMSPromptOption to " + enabled);
     }
 
     protected boolean isNonSimAccountFound() {

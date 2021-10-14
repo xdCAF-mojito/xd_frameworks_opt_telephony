@@ -55,6 +55,8 @@ public class QtiImsUtils {
     public static final int DOMAIN_CS = 1;
     public static final int DOMAIN_PS = 2;
 
+    public static final int CODE_IS_PS_ONLY_ATTACHED = 3002;
+
     public static final int RETRY_ON_IMS_WITHOUT_RTT = 301;
     //value of below constant needs to have same value as QtiCallConstants.java
     public static final int CODE_RETRY_ON_IMS_WITHOUT_RTT = 3001;
@@ -70,38 +72,30 @@ public class QtiImsUtils {
     public static final int RTT_DEFAULT_PHONE_ID = 0;
     public static final String EXTRA_PHONE_ID = "slotId";
 
-    /**
-     * Broadcast Action: Send RTT Text Message
-     */
-    public static final String ACTION_SEND_RTT_TEXT =
-            "org.codeaurora.intent.action.send.rtt.text";
+    // Call Type RTT
+    public static final int RTT_CALL_TYPE_RTT = 0;
+
+    // RTT Operating mode
+    // Dials normal voice call by default and provides an option
+    // to upgrade call to RTT in InCallUi.
+    public static final int RTT_UPON_REQUEST_MODE = 0;
+    // All the calls dialed are RTT calls by default.
+    public static final int RTT_AUTOMATIC_MODE = 1;
 
     /**
-     * RTT Text Value
-     */
-    public static final String RTT_TEXT_VALUE =
-            "org.codeaurora.intent.action.rtt.textvalue";
-
-    /**
-     * Broadcast Action: RTT Operation
-     */
-    public static final String ACTION_RTT_OPERATION =
-            "org.codeaurora.intent.action.send.rtt.operation";
-
-    /**
-     * RTT Operation Type
-     */
-    public static final String RTT_OPERATION_TYPE =
-            "org.codeaurora.intent.action.rtt.operation.type";
-
-    /**
-     * Property for RTT Operating mode
-     * For TMO - 0 : Upon Request Mode (Disabled)
-     *           1 : Automatic Mode (Full)
-     * For Vzw - 0 : Full Mode (Full)
+     * RTT Operating mode
+     * 0 : Upon Request Mode (Disabled)
+     * 1 : Automatic Mode (Full)
      *
      */
-    public static final String PROPERTY_RTT_OPERATING_MODE = "persist.vendor.radio.rtt.operval";
+    public static final String QTI_IMS_RTT_OPERATING_MODE = "qti.settings.rtt_operation";
+
+    /**
+     * Whether dialing normal call is ON or OFF
+     * The value 1 - enable (Voice call), 0 - disable (RTT call)
+     *
+     */
+    public static final String QTI_IMS_CAN_START_RTT_CALL = "qti.settings.can_start_rtt_call";
 
     /* Config to determine if Carrier supports RTT Visibility Setting
      * true - if supported else false
@@ -109,26 +103,12 @@ public class QtiImsUtils {
     public static final String KEY_SHOW_RTT_VISIBILITY_SETTING =
             "show_rtt_visibility_setting_bool";
 
-    // RTT Operation Type can be one of the following
-    // To request upgrade of regular call to RTT call
-    public static final int RTT_UPGRADE_INITIATE = 1;
-    // To accept incoming RTT upgrade request
-    public static final int RTT_UPGRADE_CONFIRM = 2;
-    // To reject incoming RTT upgrade request
-    public static final int RTT_UPGRADE_REJECT = 3;
-    // To request downgrade of RTT call to regular call
-    public static final int RTT_DOWNGRADE_INITIATE = 4;
-    // To request showing the RTT Keyboard
-    public static final int SHOW_RTT_KEYBOARD = 5;
-    // To request hiding the RTT Keyboard
-    public static final int HIDE_RTT_KEYBOARD = 6;
-
     // Returns true if global setting has stored value as true
     public static boolean isRttOn(Context context) {
-        return isRttOn(context, RTT_DEFAULT_PHONE_ID);
+        return isRttOn(RTT_DEFAULT_PHONE_ID, context);
     }
 
-    public static boolean isRttOn(Context context, int phoneId) {
+    public static boolean isRttOn(int phoneId, Context context) {
         return getRttMode(context, phoneId) != RTT_MODE_DISABLED;
     }
 
@@ -233,12 +213,26 @@ public class QtiImsUtils {
     // Utility to get the RTT Mode that is set through adb property
     // Mode can be either RTT_MODE_DISABLED or RTT_MODE_FULL
     public static int getRttOperatingMode(Context context) {
-        return getRttOperatingMode(context, RTT_DEFAULT_PHONE_ID);
+        return getRttOperatingMode(RTT_DEFAULT_PHONE_ID, context);
     }
 
-    public static int getRttOperatingMode(Context context, int phoneId) {
-        int mode = SystemProperties.getInt(PROPERTY_RTT_OPERATING_MODE + convertRttPhoneId(phoneId),
-                0);
-        return mode;
+    public static int getRttOperatingMode(int phoneId, Context context) {
+        if (shallShowRttVisibilitySetting(phoneId, context)) {
+            return RTT_AUTOMATIC_MODE;
+        }
+        return android.provider.Settings.Global.getInt(
+                context.getContentResolver(),
+                QTI_IMS_RTT_OPERATING_MODE + convertRttPhoneId(phoneId),
+                RTT_UPON_REQUEST_MODE);
+    }
+
+    // Returns true if we can start RTT call
+    public static boolean canStartRttCall(int phoneId, Context context) {
+        if (!shallShowRttVisibilitySetting(phoneId, context)) {
+            return true;
+        }
+        return android.provider.Settings.Global.getInt(context.getContentResolver(),
+               QTI_IMS_CAN_START_RTT_CALL + convertRttPhoneId(phoneId), RTT_CALL_TYPE_RTT)
+               == RTT_CALL_TYPE_RTT;
     }
 }
